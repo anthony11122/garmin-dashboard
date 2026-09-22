@@ -1,0 +1,36 @@
+# ==============================================================================
+# Garmin 佳明健康诊断与数据中心 配置文件模板 (config.example.yaml)
+# 使用前请复制为 config.yaml: cp config.example.yaml config.yaml
+# ==============================================================================
+
+web:
+  port: 8099
+  title: "Garmin 佳明健康诊断与数据中心"
+
+garmin:
+  email: "your_email@example.com"        # 佳明账号 (Email / 用户名)
+  password: "your_password"               # 佳明密码 (仅用于生成本地持久化 OAuth Token)
+  is_cn: true                             # true 为中国区 (connect.garmin.cn)，false 为国际区 (connect.garmin.com)
+  auto_sync_interval_hours: 2             # 自动同步周期 (小时)
+  sync_on_startup: true                   # 容器启动时是否立即触发一次同步
+
+intervals_icu:
+  athlete_id: "0"                         # 默认填 0 或你的 Intervals.icu 用户ID (如 i12345)
+  api_key: "your_intervals_icu_api_key"   # 从 Intervals.icu -> Settings -> Developer -> API Key 复制
+
+bark:
+  enabled: true                           # 是否启用 Bark 推送
+  server: "https://api.day.app"           # 官方云端填 https://api.day.app，自建服务填 http://your-ip:port
+  device_key: "your_bark_device_key"      # Bark App 内复制的 DeviceKey
+  group: "佳明健康"                        # 消息分组名称
+  sound: "minuet"                         # 提示音 (如 minuet, glass, chime)
+  auth_user: ""                           # 自建 Bark Basic Auth 用户名 (选填，防蹭用)
+  auth_pass: ""                           # 自建 Bark Basic Auth 密码 (选填，防蹭用)
+  notify_on_sync: true                    # 每日晨间首次同步后推送健康简报卡片 (1次/天)
+  notify_on_anomaly: true                 # 捕捉到假性尖刺/步频锁定等心率异常时预警
+
+anomaly_detection:
+  spike_threshold_bpm: 35                 # 相邻采样点心率突增阈值 (光电假性尖刺)
+  dropout_threshold_bpm: 42               # 心率骤降下潜阈值 (佩戴松动/脱落)
+  cadence_lock_tolerance: 3               # 步频锁定判定容差 (|心率 - 步频| <= 3 bpm)
+  cadence_lock_min_seconds: 45            # 步频锁定持续判定秒数
