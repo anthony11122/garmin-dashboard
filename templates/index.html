@@ -25,11 +25,19 @@
 
     </script>
     <!-- Apache ECharts -->
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <!-- Apache ECharts (本地加载优先 + 备用国内镜像) -->
+    <script src="/static/js/echarts.min.js"></script>
+    <script>
+        if (typeof echarts === 'undefined') {
+            document.write('<script src="https://registry.npmmirror.com/echarts/5.5.0/files/dist/echarts.min.js"><\/script>');
+        }
+    </script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #0b0f19; color: #f1f5f9; }
         .glass-card { background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(12px); border: 1px solid #334155; }
         .glow-blue { box-shadow: 0 0 20px -5px rgba(0, 124, 195, 0.3); }
+        #hrChart { min-height: 320px; height: 320px; width: 100%; }
+        #trendChart, #loadChart { min-height: 280px; height: 280px; width: 100%; }
     </style>
 </head>
 <body class="min-h-screen p-3 md:p-6 text-slate-100">
@@ -275,7 +283,7 @@
                 </div>
                 <div class="text-xs text-slate-400">采样点数: {{ hr_points|length }}</div>
             </div>
-            <div id="hrChart" class="w-full h-72 md:h-80"></div>
+            <div id="hrChart" class="w-full h-72 md:h-80" style="min-height: 320px; height: 320px; width: 100%;"></div>
         </div>
 
         <!-- 右侧 1列：今日综合健康与心率算法报告 -->
@@ -362,13 +370,13 @@
         <!-- 趋势 1: HRV 自主神经 vs 静息心率 -->
         <div class="glass-card rounded-2xl p-4 md:p-5 shadow-sm">
             <h2 class="text-base font-bold text-slate-200 mb-2">📈 HRV 自主神经 vs 静息心率 (RHR)</h2>
-            <div id="trendChart" class="w-full h-64 md:h-72"></div>
+            <div id="trendChart" class="w-full h-64 md:h-72" style="min-height: 280px; height: 280px; width: 100%;"></div>
         </div>
 
         <!-- 趋势 2: CTL / ATL / TSB 负荷与竞技状态曲线 -->
         <div class="glass-card rounded-2xl p-4 md:p-5 shadow-sm">
             <h2 class="text-base font-bold text-slate-200 mb-2">⚡ Intervals.icu 负荷状态曲线 (CTL / ATL / TSB)</h2>
-            <div id="loadChart" class="w-full h-64 md:h-72"></div>
+            <div id="loadChart" class="w-full h-64 md:h-72" style="min-height: 280px; height: 280px; width: 100%;"></div>
         </div>
     </div>
 
@@ -414,10 +422,12 @@
                     <input type="checkbox" id="cfgIsCn" checked class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0">
                     <label for="cfgIsCn" class="text-xs text-slate-300">使用佳明中国区（connect.garmin.cn）</label>
                 </div>
-                <div>
-                    <label class="block text-xs font-medium text-slate-300 mb-1">自动同步周期 (小时)</label>
-                    <input type="number" id="cfgInterval" value="2" min="1" max="24"
-                           class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500">
+                <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/60 flex items-center justify-between text-xs text-slate-300">
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        数据同步机制
+                    </span>
+                    <span class="text-emerald-400 font-medium">⚡ 实时静默探测获取</span>
                 </div>
                 
                 <div id="garminFeedback" class="hidden p-2 rounded text-xs"></div>
@@ -465,9 +475,9 @@
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-slate-300 mb-1">Bark 服务器地址</label>
-                    <input type="text" id="cfgBarkServer" value="{{ bark_server }}" required placeholder="https://api.day.app 或自建地址"
+                    <input type="text" id="cfgBarkServer" value="{{ bark_server }}" required placeholder="https://api.day.app 或 http://自建IP:8090"
                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-rose-500 font-mono">
-                    <p class="text-[11px] text-slate-400 mt-1">官方服务填 <code>https://api.day.app</code>，自建服务器填 <code>http://your-ip:port</code></p>
+                    <p class="text-[11px] text-slate-400 mt-1">官方云端填 <code>https://api.day.app</code>，自建服务器填 <code>http://your-server-ip:8090</code></p>
                 </div>
                 <div>
                     <div class="flex items-center justify-between mb-1">
@@ -538,8 +548,22 @@
 
     <!-- 图表与交互脚本 -->
     <script>
-        // 渲染全天心率图表
-        const hrPointsRaw = {{ hr_points | tojson }};
+        function initAllCharts() {
+            if (typeof echarts === 'undefined') {
+                console.error("ECharts 库未加载成功");
+                const errBox = document.getElementById('hrChart');
+                if (errBox) {
+                    errBox.innerHTML = '<div style="display:flex;height:100%;align-items:center;justify-content:center;color:#f87171;font-size:12px;">⚠️ ECharts 核心库未能成功加载，请检查网络或刷新页面重试</div>';
+                }
+                return;
+            }
+
+            let hrChart = null;
+            let trendChart = null;
+            let loadChart = null;
+
+            // 渲染全天心率图表
+            const hrPointsRaw = {{ hr_points | tojson }};
         const hrTimes = hrPointsRaw.map(p => p.time_str);
         const hrBpm = hrPointsRaw.map(p => p.hr);
         
@@ -555,7 +579,7 @@
 
         const hrDom = document.getElementById('hrChart');
         if (hrDom && hrTimes.length > 0) {
-            const hrChart = echarts.init(hrDom);
+            hrChart = echarts.init(hrDom);
             hrChart.setOption({
                 backgroundColor: 'transparent',
                 tooltip: {
@@ -607,101 +631,190 @@
             window.addEventListener('resize', () => hrChart.resize());
         }
 
-        // 渲染近14-30天 HRV vs RHR 趋势图
-        const trendList = {{ recent_list | tojson }}.reverse();
-        const trendDates = trendList.map(item => item.date.slice(5));
-        const trendHrv = trendList.map(item => item.hrv_last_night || null);
-        const trendRhr = trendList.map(item => item.resting_hr || null);
+                // 渲染近14-30天 HRV vs RHR 趋势图
+        try {
+            const rawTrend = {{ recent_list | tojson }};
+            const trendList = Array.isArray(rawTrend) ? rawTrend.slice().reverse() : [];
+            const trendDates = trendList.map(item => (item && item.date) ? item.date.slice(5) : '');
+            const trendHrv = trendList.map(item => (item && item.hrv_last_night !== undefined) ? item.hrv_last_night : null);
+            const trendRhr = trendList.map(item => (item && item.resting_hr !== undefined) ? item.resting_hr : null);
 
-        const trendDom = document.getElementById('trendChart');
-        if (trendDom && trendDates.length > 0) {
-            const trendChart = echarts.init(trendDom);
-            trendChart.setOption({
-                backgroundColor: 'transparent',
-                tooltip: {
-                    trigger: 'axis',
-                    backgroundColor: '#1e293b',
-                    borderColor: '#475569',
-                    textStyle: { color: '#f8fafc', fontSize: 12 }
-                },
-                legend: {
-                    data: ['昨夜 HRV (ms)', '静息心率 RHR (bpm)'],
-                    textStyle: { color: '#cbd5e1' },
-                    top: 0
-                },
-                grid: { top: 35, right: 35, bottom: 25, left: 40 },
-                xAxis: {
-                    type: 'category',
-                    data: trendDates,
-                    axisLine: { lineStyle: { color: '#475569' } },
-                    axisLabel: { color: '#94a3b8', fontSize: 11 }
-                },
-                yAxis: [
-                    { type: 'value', name: 'HRV', splitLine: { lineStyle: { color: '#334155', type: 'dashed' } }, axisLabel: { color: '#38bdf8' } },
-                    { type: 'value', name: 'RHR', splitLine: { show: false }, axisLabel: { color: '#f43f5e' } }
-                ],
-                series: [
-                    { name: '昨夜 HRV (ms)', type: 'line', data: trendHrv, smooth: true, itemStyle: { color: '#38bdf8' }, lineStyle: { width: 2.5 } },
-                    { name: '静息心率 RHR (bpm)', type: 'line', yAxisIndex: 1, data: trendRhr, smooth: true, itemStyle: { color: '#f43f5e' }, lineStyle: { width: 2, type: 'dashed' } }
-                ]
-            });
-            window.addEventListener('resize', () => trendChart.resize());
+            const trendDom = document.getElementById('trendChart');
+            if (trendDom) {
+                if (trendDates.length === 0) {
+                    trendDom.innerHTML = '<div style="display:flex;height:100%;align-items:center;justify-content:center;color:#64748b;font-size:12px;">暂无历史趋势数据</div>';
+                } else {
+                    trendChart = echarts.init(trendDom);
+                    trendChart.setOption({
+                        backgroundColor: 'transparent',
+                        tooltip: {
+                            trigger: 'axis',
+                            backgroundColor: '#1e293b',
+                            borderColor: '#475569',
+                            textStyle: { color: '#f8fafc', fontSize: 12 }
+                        },
+                        legend: {
+                            data: ['昨夜 HRV (ms)', '静息心率 RHR (bpm)'],
+                            textStyle: { color: '#cbd5e1' },
+                            top: 0
+                        },
+                        grid: { top: 35, right: 35, bottom: 25, left: 40 },
+                        xAxis: {
+                            type: 'category',
+                            data: trendDates,
+                            axisLine: { lineStyle: { color: '#475569' } },
+                            axisLabel: { color: '#94a3b8', fontSize: 11 }
+                        },
+                        yAxis: [
+                            { type: 'value', name: 'HRV', splitLine: { lineStyle: { color: '#334155', type: 'dashed' } }, axisLabel: { color: '#38bdf8' } },
+                            { type: 'value', name: 'RHR', splitLine: { show: false }, axisLabel: { color: '#f43f5e' } }
+                        ],
+                        series: [
+                            {
+                                name: '昨夜 HRV (ms)',
+                                type: 'line',
+                                data: trendHrv,
+                                smooth: true,
+                                connectNulls: true,
+                                showSymbol: true,
+                                symbolSize: 6,
+                                itemStyle: { color: '#38bdf8' },
+                                lineStyle: { width: 2.5 }
+                            },
+                            {
+                                name: '静息心率 RHR (bpm)',
+                                type: 'line',
+                                yAxisIndex: 1,
+                                data: trendRhr,
+                                smooth: true,
+                                connectNulls: true,
+                                showSymbol: true,
+                                symbolSize: 6,
+                                itemStyle: { color: '#f43f5e' },
+                                lineStyle: { width: 2, type: 'dashed' }
+                            }
+                        ]
+                    });
+                    window.addEventListener('resize', () => { if (trendChart) trendChart.resize(); });
+                }
+            }
+        } catch (e) {
+            console.error("渲染 HRV vs RHR 趋势图失败:", e);
         }
 
         // 渲染 Intervals.icu 负荷曲线 (CTL / ATL / TSB)
-        const loadCtl = trendList.map(item => item.ctl !== undefined ? item.ctl : null);
-        const loadAtl = trendList.map(item => item.atl !== undefined ? item.atl : null);
-        const loadTsb = trendList.map(item => item.tsb !== undefined ? item.tsb : null);
+        try {
+            const rawTrend = {{ recent_list | tojson }};
+            const trendList = Array.isArray(rawTrend) ? rawTrend.slice().reverse() : [];
+            const trendDates = trendList.map(item => (item && item.date) ? item.date.slice(5) : '');
+            const loadCtl = trendList.map(item => (item && item.ctl !== undefined && item.ctl !== null) ? Number(item.ctl.toFixed(1)) : null);
+            const loadAtl = trendList.map(item => (item && item.atl !== undefined && item.atl !== null) ? Number(item.atl.toFixed(1)) : null);
+            const loadTsb = trendList.map(item => (item && item.tsb !== undefined && item.tsb !== null) ? Number(item.tsb.toFixed(1)) : null);
 
-        const loadDom = document.getElementById('loadChart');
-        if (loadDom && trendDates.length > 0) {
-            const loadChart = echarts.init(loadDom);
-            loadChart.setOption({
-                backgroundColor: 'transparent',
-                tooltip: {
-                    trigger: 'axis',
-                    backgroundColor: '#1e293b',
-                    borderColor: '#475569',
-                    textStyle: { color: '#f8fafc', fontSize: 12 }
-                },
-                legend: {
-                    data: ['CTL (长期体能)', 'ATL (短期疲劳)', 'TSB (竞技状态)'],
-                    textStyle: { color: '#cbd5e1' },
-                    top: 0
-                },
-                grid: { top: 35, right: 35, bottom: 25, left: 40 },
-                xAxis: {
-                    type: 'category',
-                    data: trendDates,
-                    axisLine: { lineStyle: { color: '#475569' } },
-                    axisLabel: { color: '#94a3b8', fontSize: 11 }
-                },
-                yAxis: [
-                    { type: 'value', name: '负荷', splitLine: { lineStyle: { color: '#334155', type: 'dashed' } }, axisLabel: { color: '#a855f7' } },
-                    { type: 'value', name: 'TSB', splitLine: { show: false }, axisLabel: { color: '#22d3ee' } }
-                ],
-                series: [
-                    { name: 'CTL (长期体能)', type: 'line', data: loadCtl, smooth: true, itemStyle: { color: '#3b82f6' }, lineStyle: { width: 2.5 } },
-                    { name: 'ATL (短期疲劳)', type: 'line', data: loadAtl, smooth: true, itemStyle: { color: '#a855f7' }, lineStyle: { width: 2 } },
-                    { name: 'TSB (竞技状态)', type: 'bar', yAxisIndex: 1, data: loadTsb, itemStyle: {
-                        color: function(params) {
-                            return params.value >= 0 ? '#10b981' : '#f43f5e';
-                        }
-                    }}
-                ]
-            });
-            window.addEventListener('resize', () => loadChart.resize());
+            const loadDom = document.getElementById('loadChart');
+            if (loadDom) {
+                if (trendDates.length === 0) {
+                    loadDom.innerHTML = '<div style="display:flex;height:100%;align-items:center;justify-content:center;color:#64748b;font-size:12px;">暂无负荷数据</div>';
+                } else {
+                    loadChart = echarts.init(loadDom);
+                    loadChart.setOption({
+                        backgroundColor: 'transparent',
+                        tooltip: {
+                            trigger: 'axis',
+                            backgroundColor: '#1e293b',
+                            borderColor: '#475569',
+                            textStyle: { color: '#f8fafc', fontSize: 12 }
+                        },
+                        legend: {
+                            data: ['CTL (长期体能)', 'ATL (短期疲劳)', 'TSB (竞技状态)'],
+                            textStyle: { color: '#cbd5e1' },
+                            top: 0
+                        },
+                        grid: { top: 35, right: 35, bottom: 25, left: 40 },
+                        xAxis: {
+                            type: 'category',
+                            data: trendDates,
+                            axisLine: { lineStyle: { color: '#475569' } },
+                            axisLabel: { color: '#94a3b8', fontSize: 11 }
+                        },
+                        yAxis: [
+                            { type: 'value', name: '负荷', splitLine: { lineStyle: { color: '#334155', type: 'dashed' } }, axisLabel: { color: '#a855f7' } },
+                            { type: 'value', name: 'TSB', splitLine: { show: false }, axisLabel: { color: '#22d3ee' } }
+                        ],
+                        series: [
+                            {
+                                name: 'CTL (长期体能)',
+                                type: 'line',
+                                data: loadCtl,
+                                smooth: true,
+                                connectNulls: true,
+                                showSymbol: true,
+                                symbolSize: 5,
+                                itemStyle: { color: '#3b82f6' },
+                                lineStyle: { width: 2.5 }
+                            },
+                            {
+                                name: 'ATL (短期疲劳)',
+                                type: 'line',
+                                data: loadAtl,
+                                smooth: true,
+                                connectNulls: true,
+                                showSymbol: true,
+                                symbolSize: 5,
+                                itemStyle: { color: '#a855f7' },
+                                lineStyle: { width: 2 }
+                            },
+                            {
+                                name: 'TSB (竞技状态)',
+                                type: 'bar',
+                                yAxisIndex: 1,
+                                data: loadTsb,
+                                itemStyle: {
+                                    color: function(params) {
+                                        return (params.value !== null && params.value >= 0) ? '#10b981' : '#f43f5e';
+                                    }
+                                }
+                            }
+                        ]
+                    });
+                    window.addEventListener('resize', () => { if (loadChart) loadChart.resize(); });
+                }
+            }
+        } catch (e) {
+            console.error("渲染 Intervals.icu 负荷曲线失败:", e);
         }
 
-        // 交互弹窗与 API 操作
+        // 多段延时二次自适应，解决弹性布局与异步渲染尺寸问题
+        [50, 200, 600].forEach(delay => {
+            setTimeout(() => {
+                if (hrChart) hrChart.resize();
+                if (trendChart) trendChart.resize();
+                if (loadChart) loadChart.resize();
+            }, delay);
+        });
+    }
+
+    // 页面加载完成后立即执行初始化
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAllCharts);
+    } else {
+        initAllCharts();
+    }
+    window.addEventListener('load', initAllCharts);
+
+        // 交互弹窗与设置模态框
         function openSettingsModal(tab = 'all') {
-            document.getElementById('settingsModal').classList.remove('hidden');
+            const modal = document.getElementById('settingsModal');
+            if (modal) modal.classList.remove('hidden');
             if (tab === 'icu') switchTab('icu');
             else if (tab === 'garmin') switchTab('garmin');
             else if (tab === 'bark') switchTab('bark');
+            else switchTab('garmin');
         }
+
         function closeSettingsModal() {
-            document.getElementById('settingsModal').classList.add('hidden');
+            const modal = document.getElementById('settingsModal');
+            if (modal) modal.classList.add('hidden');
         }
 
         function switchTab(t) {
@@ -827,7 +940,7 @@
             fd.append('email', document.getElementById('cfgEmail').value);
             fd.append('password', document.getElementById('cfgPassword').value);
             fd.append('is_cn', document.getElementById('cfgIsCn').checked);
-            fd.append('interval', document.getElementById('cfgInterval').value);
+
 
             try {
                 const res = await fetch('/api/settings', { method: 'POST', body: fd });

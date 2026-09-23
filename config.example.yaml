@@ -11,7 +11,7 @@ garmin:
   email: "your_email@example.com"        # 佳明账号 (Email / 用户名)
   password: "your_password"               # 佳明密码 (仅用于生成本地持久化 OAuth Token)
   is_cn: true                             # true 为中国区 (connect.garmin.cn)，false 为国际区 (connect.garmin.com)
-  auto_sync_interval_hours: 2             # 自动同步周期 (小时)
+  # 默认自动开启实时静默探测（手表在手机 App 同步后 40 秒内自动抓取并桥接，无需配置周期）
   sync_on_startup: true                   # 容器启动时是否立即触发一次同步
 
 intervals_icu:

@@ -42,8 +42,8 @@ def startup_event():
     db.init_db()
     sync.start_smart_detector()
     cfg = sync.load_config()
-    interval = cfg.get("garmin", {}).get("auto_sync_interval_hours", 2)
-    scheduler.add_job(scheduled_sync_job, "interval", hours=max(1, interval), id="garmin_periodic_sync")
+    # 保底定时全量同步（每30分钟自动校准一次，日常以实时探针为主）
+    scheduler.add_job(scheduled_sync_job, "interval", minutes=30, id="garmin_periodic_sync")
     scheduler.add_job(scheduled_sync_job, "cron", hour=7, minute=15, id="garmin_morning_sync")
     scheduler.start()
     
@@ -88,7 +88,7 @@ def index(request: Request, date: str = None):
     
     anomalies = [p for p in hr_points if p.get("is_anomaly")]
     
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request=request,
         name="index.html",
         context={
@@ -121,6 +121,10 @@ def index(request: Request, date: str = None):
             "bark_notify_on_anomaly": cfg.get("bark", {}).get("notify_on_anomaly", True)
         }
     )
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 @app.get("/api/status")
 def get_status():
@@ -173,12 +177,11 @@ def update_settings(
     email: str = Form(None),
     password: str = Form(None),
     is_cn: bool = Form(True),
-    interval: int = Form(2)
+    interval: int = Form(1)
 ):
     cfg = sync.load_config()
     garmin_cfg = cfg.setdefault("garmin", {})
     garmin_cfg["is_cn"] = is_cn
-    garmin_cfg["auto_sync_interval_hours"] = interval
     
     if email:
         garmin_cfg["email"] = email.strip()

@@ -440,28 +440,17 @@ class SmartSyncDetector(threading.Thread):
         self.running = True
 
     def run(self):
-        logger.info("🚀 启动 Garmin 智能探测器 (静默监听云端数据同步)...")
-        time.sleep(15) # 等待主服务就绪
+        logger.info("🚀 启动 Garmin 实时数据探测器 (秒级静默监听云端更新)...")
+        time.sleep(10) # 等待主服务就绪
         while self.running:
             try:
                 self.check_and_sync()
             except Exception as e:
-                logger.warning(f"智能探测异常: {e}")
+                logger.warning(f"实时探测异常: {e}")
 
-            # 动态探测周期:
-            # 07:00 - 10:30 (清晨同步窗口): 3分钟一次
-            # 10:30 - 22:30 (白天活动期): 10分钟一次
-            # 22:30 - 07:00 (夜间深睡期): 30分钟一次
+            # 默认实时高频探针（白天 06:00 - 24:00 每 40 秒轻量探测一次，夜间 90 秒）
             now = datetime.datetime.now()
-            hour = now.hour
-            minute = now.minute
-            if 7 <= hour < 10 or (hour == 10 and minute <= 30):
-                sleep_sec = 180
-            elif 10 < hour < 22 or (hour == 10 and minute > 30) or (hour == 22 and minute <= 30):
-                sleep_sec = 600
-            else:
-                sleep_sec = 1800
-
+            sleep_sec = 40 if 6 <= now.hour <= 23 else 90
             time.sleep(sleep_sec)
 
     def check_and_sync(self):
@@ -483,9 +472,9 @@ class SmartSyncDetector(threading.Thread):
             saved_gmt = db.get_kv("last_cloud_sync_gmt", "")
 
             # 检测到佳明云端有手表数据更新，自动执行同步与分析处理（无任何提醒骚扰）
-            if last_sync_gmt and last_sync_gmt != saved_gmt:
-                logger.info(f"✨ 探测到佳明云端数据更新: {saved_gmt} -> {last_sync_gmt}，自动静默同步！")
-                db.set_kv("last_cloud_sync_gmt", last_sync_gmt)
+            if last_sync_gmt and str(last_sync_gmt) != saved_gmt:
+                logger.info(f"✨ [实时获取] 探测到佳明云端数据更新: {saved_gmt} -> {last_sync_gmt}，立即自动同步与桥接！")
+                db.set_kv("last_cloud_sync_gmt", str(last_sync_gmt))
                 self.service.sync_date(today)
 
         except Exception as e:

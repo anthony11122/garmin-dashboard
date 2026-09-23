@@ -88,7 +88,7 @@ uvicorn app:app --host 0.0.0.0 --port 8099 --app-dir src
 | 配置项 | 默认值 | 说明 |
 | :--- | :--- | :--- |
 | `garmin.is_cn` | `true` | `true` 为中国区 (`connect.garmin.cn`)，`false` 为国际区 |
-| `garmin.auto_sync_interval_hours` | `2` | 后台定时同步周期（小时） |
+| `garmin.realtime_probe` | 自动开启 | 默认毫秒级时间戳轻量探针（40秒），手表在手机 App 同步后自动秒级跟进抓取 |
 | `intervals_icu.api_key` | `""` | Intervals.icu 开发者 API Key（从官网设置中复制） |
 | `intervals_icu.athlete_id` | `"0"` | Intervals.icu 运动员 ID（填 `0` 即可自动解析） |
 | `bark.enabled` | `true` | 是否启用 Bark 推送通知 |
