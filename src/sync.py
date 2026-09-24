@@ -242,7 +242,11 @@ class GarminSyncService:
                 "calories": calories,
                 "anomaly_count": len(anomalies),
                 "analysis_summary": "",
-                "raw_json": json.dumps({"hr_count": len(processed_points)})
+                "raw_json": json.dumps({
+                    "hr_count": len(processed_points),
+                    "hrv_readings": (hrv_data.get("hrvReadings") or []) if hrv_data else [],
+                    "hrv_summary": (hrv_data.get("hrvSummary") or {}) if hrv_data else {}
+                })
             }
             
             report = analyzer.generate_daily_health_report(summary_dict, anomalies, recent_days)

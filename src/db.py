@@ -191,6 +191,13 @@ def get_recent_summaries(days: int = 14):
     conn.close()
     return [dict(r) for r in rows]
 
+def get_all_summaries():
+    conn = get_conn()
+    c = conn.cursor()
+    rows = c.execute("SELECT * FROM daily_summary ORDER BY date DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 def save_hr_timeline(date_str: str, points: list):
     for p in points:
         p["date"] = date_str

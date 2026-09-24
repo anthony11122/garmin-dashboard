@@ -66,7 +66,7 @@ def index(request: Request, date: str = None):
             summary = recents[0]
             date = summary["date"]
             
-    recent_list = db.get_recent_summaries(30)
+    recent_list = db.get_all_summaries()
     # 按时间正序计算 Banister 负荷模型 (CTL / ATL / TSB)
     chronological = list(reversed(recent_list))
     computed_list = analyzer.compute_banister_loads(chronological)
@@ -112,9 +112,9 @@ def index(request: Request, date: str = None):
             "icu_api_key": cfg.get("intervals_icu", {}).get("api_key") or db.get_kv("icu_api_key", ""),
             "bark_status": "connected" if sync.get_bark_notifier().is_configured else "not_configured",
             "bark_server": cfg.get("bark", {}).get("server", "https://api.day.app"),
-            "bark_device_key": cfg.get("bark", {}).get("device_key", ""),
-            "bark_auth_user": cfg.get("bark", {}).get("auth_user", ""),
-            "bark_auth_pass": cfg.get("bark", {}).get("auth_pass", ""),
+            "bark_device_key": cfg.get("bark", {}).get("device_key", "L8danTz6iahVQduGCsougm"),
+            "bark_auth_user": cfg.get("bark", {}).get("auth_user", "barkpush"),
+            "bark_auth_pass": cfg.get("bark", {}).get("auth_pass", "YAKzh2eVd8JxNis7O5IxCQ"),
             "bark_group": cfg.get("bark", {}).get("group", "佳明健康"),
             "bark_sound": cfg.get("bark", {}).get("sound", "minuet"),
             "bark_notify_on_sync": cfg.get("bark", {}).get("notify_on_sync", True),
@@ -146,9 +146,16 @@ def get_daily(date: str = None):
     hr_points = db.get_hr_timeline(date)
     activities = db.get_activities(date)
     anomalies = [p for p in hr_points if p.get("is_anomaly")]
+    
+    recent_list = db.get_all_summaries()
+    chronological = list(reversed(recent_list))
+    computed_list = analyzer.compute_banister_loads(chronological)
+    selected_load = next((item for item in computed_list if item.get("date") == date), summary or {})
+    
     return {
         "date": date,
         "summary": summary,
+        "selected_load": selected_load,
         "hr_points": hr_points,
         "anomalies": anomalies,
         "activities": activities
@@ -264,3 +271,60 @@ def test_bark():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app:app", host="0.0.0.0", port=8099, reload=False)
+
+@app.get("/api/analysis/weekly")
+def get_weekly_analysis(date: str = None):
+    if not date:
+        date = datetime.date.today().strftime("%Y-%m-%d")
+    all_s = db.get_all_summaries()
+    result = analyzer.analyze_weekly_health(date, all_s)
+    return result
+
+@app.get("/api/analysis/monthly")
+def get_monthly_analysis(month: str = None):
+    if not month:
+        month = datetime.date.today().strftime("%Y-%m")
+    all_s = db.get_all_summaries()
+    result = analyzer.analyze_monthly_health(month, all_s)
+    return result
+
+
+@app.get("/api/analysis/hrv")
+def get_hrv_analysis(date: str = None):
+    if not date:
+        date = datetime.date.today().strftime("%Y-%m-%d")
+        
+    summary = db.get_daily_summary(date)
+    all_s = db.get_all_summaries()
+    
+    # 尝试从 SQLite 中读取 cached hrv readings
+    hrv_data = None
+    conn = db.get_conn()
+    c = conn.cursor()
+    row = c.execute("SELECT raw_json FROM daily_summary WHERE date = ?", (date,)).fetchone()
+    if row and row[0]:
+        try:
+            raw = json.loads(row[0])
+            if "hrv_readings" in raw:
+                hrv_data = {
+                    "hrvReadings": raw["hrv_readings"],
+                    "hrvSummary": raw.get("hrv_summary") or {}
+                }
+        except Exception:
+            pass
+            
+    # 若未缓存且客户端在线，尝试向 Garmin 补充拉取一次并存入 SQLite 缓存
+    if not hrv_data and sync_service.client:
+        try:
+            live_hrv = sync_service.client.get_hrv_data(date)
+            if live_hrv and live_hrv.get("hrvReadings"):
+                hrv_data = live_hrv
+                raw = json.loads(row[0]) if (row and row[0]) else {}
+                raw["hrv_readings"] = live_hrv.get("hrvReadings", [])
+                raw["hrv_summary"] = live_hrv.get("hrvSummary", {})
+                conn.execute("UPDATE daily_summary SET raw_json = ? WHERE date = ?", (json.dumps(raw), date))
+                conn.commit()
+        except Exception:
+            pass
+            
+    return analyzer.analyze_hrv_deep(date, summary, hrv_data, all_s)
