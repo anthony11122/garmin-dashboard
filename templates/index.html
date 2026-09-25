@@ -4,48 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Garmin 佳明健康中心 · Vue 3 Pro Dashboard</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        background: '#08090a',
-                        panel: '#0f1011',
-                        surface: '#141517',
-                        elevated: '#1a1b1e',
-                        borderSubtle: 'rgba(255, 255, 255, 0.06)',
-                        borderStandard: 'rgba(255, 255, 255, 0.1)',
-                        accent: '#5e6ad2',
-                        accentHover: '#7170ff',
-                        accentGlow: 'rgba(94, 106, 210, 0.25)',
-                    },
-                    fontFamily: {
-                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-                        mono: ['JetBrains Mono', 'ui-monospace', 'Menlo', 'monospace'],
-                    }
-                }
-            }
-        }
-    </script>
-    <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Pre-compiled Local Tailwind CSS (100% Offline, Zero Foreign CDN Lag) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2790%27>⚡</text></svg>">
+    <link rel="stylesheet" href="/static/css/tailwind.min.css">
     <!-- Vue 3 & ECharts (Local with Fallback) -->
     <script src="/static/js/vue.min.js"></script>
     <script src="/static/js/echarts.min.js"></script>
-    <script>
-        if (typeof Vue === 'undefined') document.write('<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"><\/script>');
-        if (typeof echarts === 'undefined') document.write('<script src="https://registry.npmmirror.com/echarts/5.5.0/files/dist/echarts.min.js"><\/script>');
-    </script>
+    <!-- Local Core Libraries -->
     <style>
         body {
             background-color: #08090a;
             color: #f7f8f8;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
             letter-spacing: -0.011em;
             -webkit-font-smoothing: antialiased;
+        }
+        .font-mono {
+            font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         }
         .linear-panel {
             background: rgba(18, 19, 21, 0.7);
@@ -991,7 +966,7 @@
                 // 周/月数据
                 const weeklyData = ref({});
                 const monthlyData = ref({});
-                const hrvData = ref({});
+                const hrvData = ref({{ initial_hrv_data | tojson if initial_hrv_data else '{}' }});
                 let hrvEpochChartInstance = null;
                 let hrvTrendChartInstance = null;
                 const heatmapMode = ref('recovery');
@@ -1398,6 +1373,7 @@
                             }
                         }]
                     }, true);
+                    hrvEpochChartInstance.resize();
                 }
 
                 function renderDailyChart() {
@@ -1849,7 +1825,11 @@
                     nextTick(() => {
                         setTimeout(() => {
                             renderDailyChart();
-                            fetchHrvData(selectedDate.value);
+                            if (hrvData.value && hrvData.value.summary) {
+                                renderDailyHrvEpochChart();
+                            } else {
+                                fetchHrvData(selectedDate.value);
+                            }
                         }, 50);
                     });
 

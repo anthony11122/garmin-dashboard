@@ -20,6 +20,18 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 
 app = FastAPI(title="Garmin Health & HR Anomaly Dashboard")
 
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+@app.middleware("http")
+async def add_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "public, max-age=604800, immutable"
+    elif request.url.path == "/" or request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
+
 TEMPLATES_DIR = os.environ.get("TEMPLATES_DIR", "/app/templates")
 STATIC_DIR = os.environ.get("STATIC_DIR", "/app/static")
 
@@ -88,10 +100,18 @@ def index(request: Request, date: str = None):
     
     anomalies = [p for p in hr_points if p.get("is_anomaly")]
     
+    raw_json = json.loads(summary.get("raw_json", "{}")) if summary and summary.get("raw_json") else {}
+    hrv_data = {
+        "hrvReadings": raw_json.get("hrv_readings", []),
+        "hrvSummary": raw_json.get("hrv_summary", {})
+    } if raw_json else None
+    initial_hrv_data = analyzer.analyze_hrv_deep(date, summary, hrv_data, recent_list)
+
     response = templates.TemplateResponse(
         request=request,
         name="index.html",
         context={
+            "initial_hrv_data": initial_hrv_data,
             "selected_date": date,
             "summary": summary,
             "selected_load": selected_load,

@@ -573,19 +573,19 @@ def analyze_hrv_deep(date_str, summary, hrv_data, recent_summaries):
     3. 近 30 天 HRV 长期趋势 (含 RHR 双轴对抗)
     4. 自主神经临床与训练指导报告
     """
-    hrv_sum = (hrv_data or {}).get("hrvSummary") or {}
-    last_night_avg = hrv_sum.get("lastNightAvg") or (summary.get("hrv_last_night") if summary else None)
-    weekly_avg = hrv_sum.get("weeklyAvg") or (summary.get("hrv_weekly_avg") if summary else None)
+    hrv_sum = (hrv_data or {}).get("hrvSummary") or (hrv_data or {}).get("hrv_summary") or {}
+    last_night_avg = hrv_sum.get("lastNightAvg") or hrv_sum.get("last_night_avg") or (summary.get("hrv_last_night") if summary else None)
+    weekly_avg = hrv_sum.get("weeklyAvg") or hrv_sum.get("weekly_avg") or (summary.get("hrv_weekly_avg") if summary else None)
     status = hrv_sum.get("status") or (summary.get("hrv_status") if summary else None)
     baseline = hrv_sum.get("baseline") or {}
-    balanced_low = baseline.get("balancedLow") or (summary.get("hrv_baseline_low") if summary else 64)
-    balanced_upper = baseline.get("balancedUpper") or (summary.get("hrv_baseline_high") if summary else 77)
-    low_upper = baseline.get("lowUpper") or (balanced_low - 2 if balanced_low else 62)
-    marker_val = baseline.get("markerValue", 0.5)
-    peak_5min = hrv_sum.get("lastNight5MinHigh")
+    balanced_low = baseline.get("balancedLow") or baseline.get("balanced_low") or (summary.get("hrv_baseline_low") if summary else 64)
+    balanced_upper = baseline.get("balancedUpper") or baseline.get("balanced_upper") or (summary.get("hrv_baseline_high") if summary else 77)
+    low_upper = baseline.get("lowUpper") or baseline.get("low_upper") or (balanced_low - 2 if balanced_low else 62)
+    marker_val = baseline.get("markerValue", baseline.get("marker_value", 0.5))
+    peak_5min = hrv_sum.get("lastNight5MinHigh") or hrv_sum.get("last_night_5min_high")
 
     # 5分钟采样序列处理
-    raw_readings = (hrv_data or {}).get("hrvReadings") or []
+    raw_readings = (hrv_data or {}).get("hrvReadings") or (hrv_data or {}).get("hrv_readings") or []
     epoch_series = []
     min_val = 999
     max_val = 0
