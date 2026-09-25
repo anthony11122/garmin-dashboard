@@ -91,11 +91,15 @@
                             Garmin Health Pro
                             <span class="text-xs px-2 py-0.5 rounded-full font-mono bg-white/[0.06] text-slate-300 border border-white/[0.08]">v2.6</span>
                         </h1>
-                        <!-- 动态状态药丸 -->
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono border"
+                        <!-- 动态状态药丸 (仅展示最新同步时间) -->
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono border transition-all cursor-default"
+                              :title="'完整同步时间戳: ' + (last_sync || '尚未同步')"
                               :class="auth_status === 'logged_in' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'">
-                            <span class="w-1.5 h-1.5 rounded-full animate-ping" :class="auth_status === 'logged_in' ? 'bg-emerald-400' : 'bg-amber-400'"></span>
-                            (( auth_status === 'logged_in' ? '佳明国区直连' : '等待凭据' ))
+                            <span class="relative flex h-2 w-2">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" :class="auth_status === 'logged_in' ? 'bg-emerald-400' : 'bg-amber-400'"></span>
+                                <span class="relative inline-flex rounded-full h-2 w-2" :class="auth_status === 'logged_in' ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                            </span>
+                            <span>(( auth_status === 'logged_in' ? formatSyncTime(last_sync) : '等待凭据' ))</span>
                         </span>
                     </div>
                     <p class="text-xs text-slate-400 mt-0.5">自主神经 (HRV) · 连续心率突变诊断 · Intervals.icu 负荷中继</p>
@@ -135,9 +139,7 @@
                 </button>
             </div>
             
-            <div class="hidden sm:flex items-center gap-3 text-xs text-slate-400">
-                <span>同步时间: <b class="text-slate-200 font-mono">(( last_sync || '刚刚' ))</b></span>
-            </div>
+
         </div>
 
         <!-- 3. TAB 1: 今日/单日详情视图 -->
@@ -979,7 +981,7 @@
                 });
 
                 const auth_status = ref('logged_in');
-                const last_sync = ref('');
+                const last_sync = ref("{{ last_sync }}" || "");
 
                 // 单日数据
                 const dailySummary = ref({{ summary | tojson if summary else '{}' }});
@@ -1012,6 +1014,26 @@
                 }
 
                 // 获取单日数据 (纯前端 SPA 无刷新内部无缝转换，保持 URL 简洁统一)
+                function formatSyncTime(syncStr) {
+                    if (!syncStr || syncStr === '尚未同步' || String(syncStr).trim() === '') return '等待同步';
+                    try {
+                        const parts = String(syncStr).trim().split(' ');
+                        if (parts.length >= 2) {
+                            const datePart = parts[0];
+                            const timePart = parts[1].substring(0, 5); // "HH:mm"
+                            if (datePart === todayStr) {
+                                return `同步: ${timePart}`;
+                            } else {
+                                const md = datePart.substring(5);
+                                return `同步: ${md} ${timePart}`;
+                            }
+                        }
+                        return `同步: ${syncStr.substring(11, 16) || syncStr}`;
+                    } catch (e) {
+                        return syncStr;
+                    }
+                }
+
                 function formatDisplayDate(dateStr) {
                     if (!dateStr) return '';
                     try {
@@ -1839,6 +1861,9 @@
                         try {
                             const res = await fetch("/api/status");
                             const data = await res.json();
+                            if (data.last_sync_time) {
+                                last_sync.value = data.last_sync_time;
+                            }
                             if (data.last_sync_time && lastSyncTime && data.last_sync_time !== lastSyncTime) {
                                 console.log("✨ 探测到佳明云端已同步更新，纯前端无刷新更新看板:", data.last_sync_time);
                                 lastSyncTime = data.last_sync_time;
@@ -1878,6 +1903,7 @@
                     selectedFocusDay,
                     fetchDailyData,
                     formatDisplayDate,
+                    formatSyncTime,
                     stepDay,
                     onDateInputChange,
                     switchTabTo,
